@@ -59,6 +59,7 @@ import Shirdi from "./components/Shirdi.jsx";
 import Lonavla from "./components/Lonavla.jsx";
 import GatewayofIndia from "./components/GatewayofIndia.jsx";
 import Kohlapur from "./components/Kohlapur.jsx";
+import ItineraryPlanner from "./components/ItineraryPlanner.jsx";
 
 const App = () => {
 
@@ -73,6 +74,7 @@ const App = () => {
               <Route path="/signin" element={<Login />} />
               <Route path="/accountcreated" element={<AccountCreated />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/itinerary" element={<ItineraryPlanner />} />
                 
           
               <Route path="/socials" element={<SocialIntegration />} />

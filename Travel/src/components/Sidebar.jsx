@@ -10,6 +10,7 @@ import {
   FaTrophy,
   FaDownload,
   FaUserCircle,
+  FaRoute,
 } from 'react-icons/fa';
 
 const Sidebar = () => {
@@ -49,12 +50,12 @@ const Sidebar = () => {
           >
             <FaCamera className="mr-3" /> My Quests
           </Link>
-          <a
-            href="https://iti-gen-47hm-git-main-arushs-projects-de106c3b.vercel.app/"
+          <Link
+            to="/itinerary"
             className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
           >
-            <FaLeaf className="mr-3" /> My Itinerary
-          </a>
+            <FaRoute className="mr-3" /> My Itinerary
+          </Link>
           <Link
             to="/my-badges"
             className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"

@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import Map, { NavigationControl } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Download, Wifi, WifiOff } from 'lucide-react';
-import { saveAs } from 'file-saver'; // Import FileSaver.js
+import { saveAs } from 'file-saver';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+function ViewStateTracker({ onViewChange }) {
+  useMapEvents({
+    moveend: (evt) => {
+      const map = evt.target;
+      const center = map.getCenter();
+      onViewChange({
+        longitude: center.lng,
+        latitude: center.lat,
+        zoom: Math.round(map.getZoom()),
+      });
+    },
+  });
+  return null;
+}
 
 const OfflineMode = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -83,7 +96,7 @@ const OfflineMode = () => {
         const tileX = centerTileX + x;
         const tileY = centerTileY + y;
         tileUrls.push(
-          `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${tileX}/${tileY}@2x.png?access_token=${MAPBOX_TOKEN}`
+          `https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`
         );
       }
     }
@@ -115,15 +128,17 @@ const OfflineMode = () => {
         </div>
       )}
       <div className="w-full max-w-4xl h-96 rounded-lg overflow-hidden shadow-lg">
-        <Map
-          {...viewState}
-          onMove={(evt) => setViewState(evt.viewState)}
+        <MapContainer
+          center={[viewState.latitude, viewState.longitude]}
+          zoom={viewState.zoom}
           style={{ width: '100%', height: '100%' }}
-          mapStyle="mapbox://styles/mapbox/streets-v11"
-          mapboxAccessToken={MAPBOX_TOKEN}
         >
-          <NavigationControl />
-        </Map>
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <ViewStateTracker onViewChange={setViewState} />
+        </MapContainer>
       </div>
     </div>
   );

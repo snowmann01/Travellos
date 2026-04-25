@@ -1,20 +1,18 @@
 // src/components/CarbonReductionMap.jsx
 
 import React, { useEffect, useState } from 'react';
-import ReactMapGL, { Marker, Popup } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const CarbonReductionMap = () => {
   const [mapData, setMapData] = useState([]);
   const [popupInfo, setPopupInfo] = useState(null);
-  const [viewport, setViewport] = useState({
-    latitude: 39.833333,
-    longitude: -98.583333,
-    zoom: 4,
-    width: '100vw',
-    height: '100vh',
+  const pinIcon = L.divIcon({
+    className: 'carbon-dot',
+    html: '<span style="display:block;width:16px;height:16px;border-radius:999px;background:#16a34a;border:2px solid #ffffff"></span>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
   });
 
   useEffect(() => {
@@ -56,18 +54,20 @@ const CarbonReductionMap = () => {
 
   return (
     <div className="h-screen">
-      <ReactMapGL
-        {...viewport}
-        mapboxApiAccessToken={MAPBOX_TOKEN}
-        onViewportChange={(nextViewport) => setViewport(nextViewport)}
+      <MapContainer
+        center={[39.833333, -98.583333]}
+        zoom={4}
+        style={{ width: '100%', height: '100%' }}
       >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
         {mapData.map((resource, index) => (
           <Marker
             key={index}
-            longitude={resource.longitude}
-            latitude={resource.latitude}
-            offsetLeft={-20}
-            offsetTop={-10}
+            position={[resource.latitude, resource.longitude]}
+            icon={pinIcon}
           >
             <div
               className="marker"
@@ -85,8 +85,7 @@ const CarbonReductionMap = () => {
 
         {popupInfo && (
           <Popup
-            latitude={popupInfo.latitude}
-            longitude={popupInfo.longitude}
+            position={[popupInfo.latitude, popupInfo.longitude]}
             closeButton={true}
             closeOnClick={false}
             onClose={() => setPopupInfo(null)}
@@ -97,7 +96,7 @@ const CarbonReductionMap = () => {
             </div>
           </Popup>
         )}
-      </ReactMapGL>
+      </MapContainer>
     </div>
   );
 };

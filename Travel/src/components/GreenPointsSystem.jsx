@@ -1,12 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import Map, { Marker } from 'react-map-gl';
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import axios from 'axios';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import 'leaflet/dist/leaflet.css';
 import { MapPin, Bike, Car, Train, Loader, Info ,Target,ArrowRightCircle } from 'lucide-react';
 import { Button } from '@material-tailwind/react';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const API_KEY = import.meta.env.VITE_CARBON_TOKEN;
+
+const redIcon = L.divIcon({
+  className: 'gps-red-dot',
+  html: '<span style="display:block;width:14px;height:14px;border-radius:999px;background:#ef4444;border:2px solid #ffffff"></span>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
+const blueIcon = L.divIcon({
+  className: 'gps-blue-dot',
+  html: '<span style="display:block;width:14px;height:14px;border-radius:999px;background:#3b82f6;border:2px solid #ffffff"></span>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
+function ClickHandler({ onClick }) {
+  useMapEvents({
+    click: (evt) => {
+      onClick({
+        latitude: evt.latlng.lat,
+        longitude: evt.latlng.lng,
+      });
+    },
+  });
+  return null;
+}
 
 const GreenPointsSystem = () => {
   const [userLocation, setUserLocation] = useState(null);
@@ -141,12 +166,7 @@ const GreenPointsSystem = () => {
     return (distance * emissionsFactor * randomFactor).toFixed(2);
   };
 
-  const handleMapClick = (event) => {
-    setDestination({
-      latitude: event.lngLat.lat,
-      longitude: event.lngLat.lng,
-    });
-  };
+  const handleMapClick = (coords) => setDestination(coords);
 
   return (
     <div className="container mx-auto p-6 bg-gradient-to-b from-mint to-light-green rounded-lg shadow-lg">
@@ -186,24 +206,23 @@ const GreenPointsSystem = () => {
           <Loader className="animate-spin h-12 w-12 text-green-500" />
         </div>
       ) : (
-        <Map
-          initialViewState={{
-            longitude: userLocation?.longitude || -74.006,
-            latitude: userLocation?.latitude || 40.7128,
-            zoom: 12,
-          }}
+        <MapContainer
+          center={[userLocation?.latitude || 40.7128, userLocation?.longitude || -74.006]}
+          zoom={12}
           style={{ width: '100%', height: '500px', borderRadius: '8px' }}
-          mapStyle="mapbox://styles/mapbox/streets-v11"
-          mapboxAccessToken={MAPBOX_TOKEN}
-          onClick={handleMapClick}
         >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <ClickHandler onClick={handleMapClick} />
           {userLocation && (
-            <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} color="red" />
+            <Marker position={[userLocation.latitude, userLocation.longitude]} icon={redIcon} />
           )}
           {destination && (
-            <Marker longitude={destination.longitude} latitude={destination.latitude} color="blue" />
+            <Marker position={[destination.latitude, destination.longitude]} icon={blueIcon} />
           )}
-        </Map>
+        </MapContainer>
       )}
 
       <div className="mt-8 p-6 bg-white rounded-lg shadow-md text-center">

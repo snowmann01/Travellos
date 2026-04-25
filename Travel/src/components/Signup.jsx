@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { auth, googleProvider } from '../Config/firebase';
 import { signInWithPopup } from 'firebase/auth';
-import {server} from "../main.jsx"
+import { server } from '../config/api.js';
 
 const Signup = () => {
   const navigate = useNavigate();

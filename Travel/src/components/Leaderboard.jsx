@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
 import { FaMedal, FaUserCircle, FaMapMarkerAlt, FaCamera, FaUtensils, FaLandmark, FaPalette } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
@@ -44,8 +43,6 @@ const highScoresData = {
   Delhi: 7200,
 };
 
-const socket = io('http://localhost:5000');
-
 const badges = {
   CityExplorer: { icon: <FaMapMarkerAlt />, color: 'bg-blue-500' },
   CulturalAmbassador: { icon: <FaLandmark />, color: 'bg-purple-500' },
@@ -70,17 +67,6 @@ const Leaderboard = () => {
   useEffect(() => {
     // Simulate user location detection
     setTimeout(() => setUserLocation('Maharashtra'), 1000);
-
-    // Real-time leaderboard update via socket.io
-    socket.on('updateLeaderboard', (data) => {
-      setGlobalUsers(data.global);
-      setRegionalUsers(data.regional);
-      setHighScores(data.highScores);
-    });
-
-    return () => {
-      socket.off('updateLeaderboard');
-    };
   }, []);
 
   const getLeaderboardData = () => {

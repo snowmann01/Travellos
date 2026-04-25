@@ -20,9 +20,6 @@ import {
   FaHome,
 } from 'react-icons/fa';
 
-const ITINERARY_BUILDER_URL =
-  'https://iti-gen-47hm-git-main-arushs-projects-de106c3b.vercel.app/';
-
 const glassPanel =
   'rounded-2xl border border-white/25 bg-white/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.25)]';
 
@@ -69,6 +66,8 @@ const Dashboard = () => {
   const [badgeCount, setBadgeCount] = useState(null);
 
   useEffect(() => {
+    if (!user) return;
+
     const fetchUserProfile = async () => {
       try {
         const { data } = await axios.get('/api/user/profile', { withCredentials: true });
@@ -94,7 +93,7 @@ const Dashboard = () => {
 
     fetchUserProfile();
     fetchBadges();
-  }, []);
+  }, [user]);
 
   const displayName =
     [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
@@ -122,10 +121,9 @@ const Dashboard = () => {
       icon: <FaTrophy className="h-5 w-5" />,
     },
     {
-      title: 'Dynamic itinerary',
-      description: 'AI-powered trip planning (external builder).',
-      href: ITINERARY_BUILDER_URL,
-      external: true,
+      title: 'Itinerary planner',
+      description: 'AI search, map, drag-and-drop days, budget, and share links.',
+      to: '/itinerary',
       icon: <FaRoute className="h-5 w-5" />,
     },
     {

@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes.js';
 import InfoRoutes from './routes/user.routes.js';
 import questRoutes from './routes/quests.routes.js';
+import itineraryRoutes from './routes/itinerary.routes.js';
 import './config/dotenv.js';
 
 const app = express();
@@ -19,13 +20,15 @@ const extraOrigins = (process.env.CORS_ORIGINS || '')
     .map((o) => o.trim())
     .filter(Boolean);
 const allowedOrigins = [...defaultOrigins, ...extraOrigins];
+const isLocalDevOrigin = (origin = '') =>
+    /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
 
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error(`Not allowed by CORS: ${origin}`));
         }
     },
     credentials: true,
@@ -35,16 +38,14 @@ app.use(express.json());
 app.use(cookieParser());
 
 
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to Database Successfully ! '))
     .catch((err) => console.error(err));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', InfoRoutes);
 app.use('/api/quests', questRoutes);
+app.use('/api/itinerary', itineraryRoutes);
 
 app.get("/",(req,res)=>{
     res.send("Testing")

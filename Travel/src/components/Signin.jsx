@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { auth, googleProvider } from '../Config/firebase.js';
 import { signInWithPopup } from 'firebase/auth';
-import {server} from "../main.jsx"
+import { server } from '../config/api.js';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -44,7 +44,12 @@ const Login = () => {
 
     } catch (error) {
       console.error('Login error:', error);
-      toast.error("Login failed: " + error.response?.data?.message || "An error occurred");
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'An unexpected error occurred';
+      toast.error(`Login failed: ${message}`);
     }
   };
 

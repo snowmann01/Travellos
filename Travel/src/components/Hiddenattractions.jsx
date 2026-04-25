@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Map, { Marker, Popup, NavigationControl, GeolocateControl } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { useSpring, animated } from 'react-spring';
-import Confetti from 'react-confetti';
-import { Tooltip } from 'react-tooltip';
-import { MapPin, Camera, Info, Share2 } from 'lucide-react';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+import React, { useState } from 'react';
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapPin } from 'lucide-react';
 
 const attractionsData = {
   Udupi: [
@@ -76,26 +72,20 @@ const attractionsData = {
 };
 
 const HiddenAttractions = () => {
-  const [viewState, setViewState] = useState({
-    latitude: 20.5937, //india
-    longitude: 78.9629,
-    zoom: 5,
-  });
   const [selectedAttraction, setSelectedAttraction] = useState(null);
-  const mapRef = useRef();
-
-  const popupAnimation = useSpring({
-    opacity: selectedAttraction ? 1 : 0,
-    transform: selectedAttraction ? 'translateY(0)' : 'translateY(50px)',
+  const pinIcon = L.divIcon({
+    className: 'hidden-attraction-pin',
+    html: '<span style="display:block;width:14px;height:14px;border-radius:999px;background:#3b82f6;border:2px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.35)"></span>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
   });
 
   const renderAttractionMarkers = () => {
     return Object.values(attractionsData).flat().map((attraction) => (
       <Marker
         key={attraction.id}
-        longitude={attraction.longitude}
-        latitude={attraction.latitude}
-        anchor="bottom"
+        position={[attraction.latitude, attraction.longitude]}
+        icon={pinIcon}
       >
         <div
           onClick={() => setSelectedAttraction(attraction)}
@@ -112,13 +102,10 @@ const HiddenAttractions = () => {
 
     return (
       <Popup
-        longitude={selectedAttraction.longitude}
-        latitude={selectedAttraction.latitude}
-        anchor="bottom"
+        position={[selectedAttraction.latitude, selectedAttraction.longitude]}
         onClose={() => setSelectedAttraction(null)}
-        closeOnClick={false}
       >
-        <animated.div style={popupAnimation} className="p-4 max-w-sm">
+        <div className="p-4 max-w-sm">
           <h3 className="text-lg font-semibold mb-2">{selectedAttraction.name}</h3>
           <img src={selectedAttraction.photo} alt={selectedAttraction.name} className="mb-2 w-full h-32 object-cover rounded" />
           <p className="text-sm text-gray-600 mb-2">{selectedAttraction.description}</p>
@@ -128,34 +115,28 @@ const HiddenAttractions = () => {
           >
             Explore this page
           </a>
-        </animated.div>
+        </div>
       </Popup>
     );
   };
 
   return (
     <div className="relative h-screen">
-      <Map
-        {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
+      <MapContainer
+        center={[20.5937, 78.9629]}
+        zoom={5}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/streets-v11"
-        mapboxAccessToken={MAPBOX_TOKEN}
-        ref={mapRef}
       >
-        <GeolocateControl
-          positionOptions={{ enableHighAccuracy: true }}
-          trackUserLocation={true}
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <NavigationControl />
         {renderAttractionMarkers()}
         {renderPopup()}
-      </Map>
+      </MapContainer>
       <div className="absolute top-4 left-4 right-4 bg-white bg-opacity-90 rounded-lg shadow-lg p-4">
         <h2 className="text-2xl font-bold text-teal-800 text-center mb-4">Hidden Attractions</h2>
       </div>
-      <Tooltip id="info-tooltip" />
-      {/* {selectedAttraction && <Confetti />} */} 
     </div>
   );
 };
