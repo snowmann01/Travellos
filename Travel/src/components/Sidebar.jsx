@@ -8,7 +8,6 @@ import {
   FaCamera,
   FaLeaf,
   FaTrophy,
-  FaDownload,
   FaUserCircle,
   FaRoute,
 } from 'react-icons/fa';
@@ -75,34 +74,16 @@ const Sidebar = () => {
             <FaLeaf className="mr-3" /> Local Immersion
           </Link>
           <Link
-            to="/offline-mode"
-            className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
-          >
-            <FaDownload className="mr-3" /> Offline Mode
-          </Link>
-          <Link
-            to="/green-points-system"
-            className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
-          >
-            <FaDownload className="mr-3" /> Green Points
-          </Link>
-          <Link
             to="/eco-friendly"
             className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
           >
-            <FaDownload className="mr-3" /> Let's Go Green
-          </Link>
-          <Link
-            to="/carbon-reduction-map"
-            className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
-          >
-            <FaDownload className="mr-3" /> Carbon Reducer Map
+            <FaLeaf className="mr-3" /> Let's Go Green
           </Link>
           <Link
             to="/sdg"
             className="text-white text-lg font-semibold hover:bg-[#00bd9d] p-3 rounded-md flex items-center transition ease-in-out duration-300"
           >
-            <FaDownload className="mr-3" /> Our Social Development Goals
+            <FaLeaf className="mr-3" /> Our Social Development Goals
           </Link>
         </div>
       </div>

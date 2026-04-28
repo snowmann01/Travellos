@@ -155,6 +155,8 @@ export default function DayBuilder({
   readOnly = false,
 }) {
   const [activeDrag, setActiveDrag] = useState(null);
+  const hasSuggestions = suggestions.length > 0;
+  const hasItineraryItems = itemsByDay.some((day) => day.length > 0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -270,23 +272,31 @@ export default function DayBuilder({
       onDragEnd={handleDragEnd}
     >
       <div className="space-y-4">
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-cyan-100">Suggestions</h3>
-          <p className="mb-2 text-[11px] text-cyan-100/55">
-            Drag a place into a day. Reorder stops within a day or move them between days.
-          </p>
-          <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
-            {suggestions.length === 0 && (
-              <p className="text-sm text-cyan-100/50">Run a search above to load nearby POIs.</p>
-            )}
-            {suggestions.map((place, index) => (
-              <PoolCard key={`${place.xid || place.name}-${index}`} place={place} index={index} readOnly={readOnly} />
-            ))}
+        {hasSuggestions ? (
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-cyan-100">More place suggestions</h3>
+            <p className="mb-2 text-[11px] text-cyan-100/55">
+              Optional: drag any of these into a day if you want to customize the plan.
+            </p>
+            <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+              {suggestions.map((place, index) => (
+                <PoolCard key={`${place.xid || place.name}-${index}`} place={place} index={index} readOnly={readOnly} />
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-cyan-100">Your days</h3>
+          <h3 className="mb-2 text-sm font-semibold text-cyan-100">Your generated itinerary</h3>
+          <p className="mb-2 text-[11px] text-cyan-100/55">
+            This is your day-by-day plan. Edit, reorder, or remove items as needed.
+          </p>
+          {!hasItineraryItems ? (
+            <div className="mb-3 rounded-xl border border-amber-300/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              No itinerary stops were generated for this search. Try a more specific prompt (for example:
+              "3 days in Jaipur, India with food and culture").
+            </div>
+          ) : null}
           <div className="flex gap-3 overflow-x-auto pb-2">
             {itemsByDay.map((dayItems, dayIndex) => (
               <DayDropColumn

@@ -3,13 +3,28 @@ import axios from 'axios';
 import Itinerary from '../models/itinerary.model.js';
 
 const OTM_BASE = 'https://api.opentripmap.com/0.1/en/places';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function heuristicDestination(query) {
   const q = query.trim();
-  let m = q.match(/\bin\s+([^,.!?]+?)(?:\s+for\s+|\s+\d+\s+|$)/i);
-  if (m) return m[1].trim().replace(/[?.!]$/, '');
-  m = q.match(/^(?:visit|explore|weekend in|trip to)\s+([^,.!?]+)/i);
+  
+  // First, try to remove "X days in" prefix and get what's after it
+  // Query: "3 days in Paris, France, interests:..." -> "Paris, France, interests:..."
+  let m = q.match(/^(\d+)\s*days?\s+in\s+(.+)/i);
+  if (m) {
+    // Take everything after "X days in" up to comma or interests/budget keywords
+    let destPart = m[2];
+    // Remove trailing ", interests:..." or ", budget:..." 
+    destPart = destPart.replace(/,\s*(interests|budget):.*$/i, '');
+    return destPart.trim().slice(0, 80) || 'Travel';
+  }
+  
+  // Match "visit Paris, France" or "trip to Goa, India"
+  m = q.match(/^(?:visit|explore|weekend in|trip to)\s+(.+?)(?:\s+for\s+|\s+days?\s+|$)/i);
   if (m) return m[1].trim();
+  
+  // Fallback: take everything before first comma or first 80 chars
   return q.split(/[,.]/)[0].trim().slice(0, 80) || 'Travel';
 }
 
@@ -46,7 +61,7 @@ async function fetchGeoname(name) {
   return data;
 }
 
-async function fetchNominatimGeocode(name) {
+async function fetchNominatimGeocode(name, query) {
   const { data } = await axios.get('https://nominatim.openstreetmap.org/search', {
     params: {
       q: name,
@@ -62,7 +77,35 @@ async function fetchNominatimGeocode(name) {
     timeout: 20000,
   });
   const first = Array.isArray(data) ? data[0] : null;
-  if (!first) return null;
+  if (!first) {
+    try {
+      const retry = await axios.get('https://nominatim.openstreetmap.org/search', {
+        params: {
+          q: query,
+          format: 'jsonv2',
+          limit: 1,
+          addressdetails: 0,
+        },
+        headers: {
+          // Nominatim requires a descriptive user-agent / contact.
+          'User-Agent': process.env.NOMINATIM_USER_AGENT || 'Travello/1.0 (dev)',
+          Accept: 'application/json',
+        },
+        timeout: 20000,
+      });
+      const retryFirst = Array.isArray(retry.data) ? retry.data[0] : null;
+      if (retryFirst) {
+        return {
+          lat: Number(retryFirst.lat),
+          lon: Number(retryFirst.lon),
+          name: retryFirst.display_name?.split(',')?.[0] || query,
+        };
+      }
+    } catch (e) {
+      console.warn('Nominatim failed:', e.message);
+    }
+    return null;
+  }
   const lat = Number(first.lat);
   const lon = Number(first.lon);
   if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
@@ -101,93 +144,71 @@ async function fetchRadius(lon, lat, radiusM = 15000, limit = 45) {
   return normalizePois(data?.features);
 }
 
-async function geminiDraft(userQuery, destName, pois, dayCount) {
+async function callGemini(userQuery, destName, pois, dayCount) {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-
-  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  if (!key) {
+    console.warn('[Gemini] GEMINI_API_KEY not set - skipping AI draft');
+    return null;
+  }
 
   const poiSlice = pois.slice(0, 35);
-  const prompt = `You are a travel itinerary assistant.
+  const systemPrompt = 'You are an expert travel planner. Always respond with ONLY valid JSON - no markdown, no code fences, no extra text.';
+  const userPrompt = `
+Plan a ${dayCount}-day trip based on: "${userQuery}"
+Destination: ${destName}
 
-User request: "${userQuery}"
-Primary destination (place name): ${destName}
-Target day count (integer): ${dayCount}
+Available nearby places (prefer these for lat/lon accuracy):
+${JSON.stringify(poiSlice, null, 2)}
 
-Nearby POIs (JSON array; use these names and lat/lon when you pick a place):
-${JSON.stringify(poiSlice)}
-
-Return ONLY valid JSON (no markdown) with this shape:
+Return ONLY this JSON structure (no other text):
 {
-  "title": "short trip title",
+  "title": "Catchy trip title",
   "dayCount": ${dayCount},
   "days": [
     {
       "day": 1,
+      "theme": "Arrival & City Centre",
       "activities": [
-        { "time": "09:30", "title": "Activity name", "description": "one sentence", "lat": 0, "lon": 0 }
+        {
+          "time": "09:30",
+          "title": "Place or activity name",
+          "description": "One engaging sentence about why to visit",
+          "lat": 48.8584,
+          "lon": 2.2945,
+          "estimatedCostUSD": 15
+        }
       ]
     }
   ]
 }
 
-Rules: Prefer POIs from the list; copy lat/lon from the chosen POI. Include 2–5 activities per day. Times are plausible. If a POI is not in the list, still pick real coordinates near ${destName}.`;
+Rules:
+- Include 3-5 activities per day with realistic, spaced-out times
+- Copy lat/lon from the POIs list when you use one of those places
+- estimatedCostUSD: 0 for free attractions, realistic number otherwise
+- Keep descriptions helpful and specific, not generic
+- Spread activities geographically to minimise travel time
+`.trim();
 
-  const res = await fetch(url, {
+  const response = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ parts: [{ text: userPrompt }] }],
       generationConfig: {
-        temperature: 0.6,
+        temperature: 0.65,
         responseMimeType: 'application/json',
       },
     }),
   });
 
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${t.slice(0, 200)}`);
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini ${response.status}: ${errText.slice(0, 300)}`);
   }
-  const body = await res.json();
+  const body = await response.json();
   const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    const m = text.match(/\{[\s\S]*\}/);
-    return m ? JSON.parse(m[0]) : null;
-  }
-}
-
-async function openRouterDraft(userQuery, destName, pois, dayCount) {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) return null;
-
-  const model = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001:free';
-  const poiSlice = pois.slice(0, 35);
-  const prompt = `User request: "${userQuery}". Destination: ${dayCount} days in ${destName}. POIs: ${JSON.stringify(poiSlice)}. Return ONLY JSON: {"title":string,"dayCount":number,"days":[{"day":1,"activities":[{"time":"09:00","title":string,"description":string,"lat":number,"lon":number}]}]} — use lat/lon from POIs when possible.`;
-
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`OpenRouter error ${res.status}: ${t.slice(0, 200)}`);
-  }
-  const body = await res.json();
-  const text = body?.choices?.[0]?.message?.content;
   if (!text) return null;
   try {
     return JSON.parse(text);
@@ -224,6 +245,59 @@ function draftToDays(draft, fallbackDayCount) {
   return daysArr;
 }
 
+function buildFallbackDraft(destName, pois, dayCount, lat, lon) {
+  const genericActivities = (dayNumber) => [
+    {
+      time: '09:00',
+      title: `Explore ${destName} city center`,
+      description: 'Start with a relaxed walk through the main local area.',
+      lat,
+      lon,
+      estimatedCostUSD: 0,
+    },
+    {
+      time: '13:00',
+      title: `Local lunch in ${destName}`,
+      description: 'Try a well-rated local restaurant for regional food.',
+      lat,
+      lon,
+      estimatedCostUSD: 15,
+    },
+    {
+      time: '17:00',
+      title: `Evening highlights - Day ${dayNumber}`,
+      description: 'Visit one key attraction and wrap up with sunset views.',
+      lat,
+      lon,
+      estimatedCostUSD: 10,
+    },
+  ];
+
+  return {
+    title: `${dayCount} Days in ${destName}`,
+    dayCount,
+    days: Array.from({ length: dayCount }, (_, i) => {
+      const dayPois = pois.slice(i * 4, i * 4 + 4);
+      const activities = dayPois.length
+        ? dayPois.map((p, j) => ({
+            time: ['09:00', '11:30', '14:00', '16:30'][j] || '10:00',
+            title: p.name,
+            description: p.kinds ? `(${p.kinds.replace(/_/g, ' ')})` : 'Point of interest',
+            lat: p.lat,
+            lon: p.lon,
+            estimatedCostUSD: 0,
+          }))
+        : genericActivities(i + 1);
+
+      return {
+        day: i + 1,
+        theme: `Day ${i + 1}`,
+        activities,
+      };
+    }),
+  };
+}
+
 export async function generateItinerary(req, res) {
   try {
     const { query, dayCount: bodyDayCount } = req.body || {};
@@ -233,34 +307,54 @@ export async function generateItinerary(req, res) {
 
     const dayCount = Math.min(14, Math.max(1, parseInt(bodyDayCount, 10) || 3));
     const destGuess = heuristicDestination(query);
+    
+    // Try multiple destination variations
+    const destVariations = [
+      destGuess,
+      query.replace(/^\d+\s+days?\s+in\s+/i, '').trim().slice(0, 80), // Remove "3 days in" prefix
+      query.trim().slice(0, 80), // Full query
+    ];
+    
     let geoRaw = null;
     let nominatimPicked = null;
-    try {
-      geoRaw = await fetchGeoname(destGuess);
-    } catch (e) {
-      console.warn('OpenTripMap geoname failed, trying Nominatim fallback:', e.message);
-      nominatimPicked = await fetchNominatimGeocode(destGuess);
-    }
-
-    let picked = pickLatLonFromGeoname(geoRaw, destGuess) || nominatimPicked;
-    if (!picked && destGuess !== query.trim()) {
+    let picked = null;
+    
+    // Try each variation until we find coordinates
+    for (const dest of destVariations) {
+      if (picked) break;
+      
       try {
-        const again = await fetchGeoname(query.trim().slice(0, 60));
-        picked = pickLatLonFromGeoname(again, query.trim());
-      } catch {
+        geoRaw = await fetchGeoname(dest);
+        picked = pickLatLonFromGeoname(geoRaw, dest);
+      } catch (e) {
+        console.warn(`OpenTripMap failed for "${dest}", trying Nominatim:`, e.message);
         try {
-          picked = await fetchNominatimGeocode(query.trim().slice(0, 60));
-        } catch {
-          /* keep null */
+          nominatimPicked = await fetchNominatimGeocode(dest, query);
+          picked = nominatimPicked;
+        } catch (e2) {
+          console.warn(`Nominatim failed for "${dest}":`, e2.message);
         }
       }
     }
+    
+    // If still no result, try the full query directly
+    if (!picked) {
+      try {
+        nominatimPicked = await fetchNominatimGeocode(query.trim().slice(0, 80), query);
+        picked = nominatimPicked;
+      } catch {
+        /* keep null */
+      }
+    }
+    
     const lat = picked?.lat;
     const lon = picked?.lon;
     const destName = picked?.name || geoRaw?.name || destGuess;
     if (typeof lat !== 'number' || typeof lon !== 'number') {
+      // Log what we tried for debugging
+      console.error(`Failed to find destination. Query: "${query}", destGuess: "${destGuess}"`);
       return res.status(404).json({
-        message: 'Could not resolve destination',
+        message: `Could not find destination "${destGuess}". Try being more specific, e.g. "Paris, France".`,
         hint: destGuess,
       });
     }
@@ -269,37 +363,19 @@ export async function generateItinerary(req, res) {
     try {
       pois = await fetchRadius(lon, lat);
     } catch (e) {
-      // Keep going with empty POIs so itinerary generation still works.
-      console.warn('OpenTripMap radius failed, continuing with empty POIs:', e.message);
+      console.warn('[OTM radius] POI fetch failed, continuing without POIs:', e.message);
     }
 
     let draft = null;
     try {
-      if (process.env.GEMINI_API_KEY) {
-        draft = await geminiDraft(query.trim(), destName, pois, dayCount);
-      }
-      if (!draft && process.env.OPENROUTER_API_KEY) {
-        draft = await openRouterDraft(query.trim(), destName, pois, dayCount);
-      }
+      draft = await callGemini(query.trim(), destName, pois, dayCount);
     } catch (e) {
-      console.error('LLM draft failed:', e);
+      console.error('[Gemini] draft failed:', e.message);
     }
 
     if (!draft) {
-      draft = {
-        title: `Ideas for ${destName}`,
-        dayCount,
-        days: Array.from({ length: dayCount }, (_, i) => ({
-          day: i + 1,
-          activities: pois.slice(i * 3, i * 3 + 3).map((p) => ({
-            time: '10:00',
-            title: p.name,
-            description: p.kinds || 'Point of interest',
-            lat: p.lat,
-            lon: p.lon,
-          })),
-        })),
-      };
+      console.info('[Generate] Using POI-based fallback draft');
+      draft = buildFallbackDraft(destName, pois, dayCount, lat, lon);
     }
 
     const days = draftToDays(draft, dayCount);
@@ -315,7 +391,7 @@ export async function generateItinerary(req, res) {
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: err.message || 'generate failed' });
+    return res.status(500).json({ message: err.message || 'Generation failed' });
   }
 }
 
@@ -325,7 +401,7 @@ export async function saveItinerary(req, res) {
     const { shareId, title, days, budgetItems, allowEditViaLink } = req.body || {};
 
     if (!Array.isArray(days)) {
-      return res.status(400).json({ message: 'days array required' });
+      return res.status(400).json({ message: 'days array is required' });
     }
 
     if (shareId) {
@@ -337,7 +413,7 @@ export async function saveItinerary(req, res) {
         String(doc.userId) === String(req.userId);
       if (!doc.allowEditViaLink && !isOwner) {
         return res.status(403).json({
-          message: 'This shared trip is view-only for others (sign in as the owner to save)',
+          message: 'This trip is view-only. Sign in as the owner to make changes.',
         });
       }
       doc.title = title ?? doc.title;
@@ -362,15 +438,16 @@ export async function saveItinerary(req, res) {
     return res.json({ shareId: newShareId, updated: false });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: err.message || 'save failed' });
+    return res.status(500).json({ message: err.message || 'Save failed' });
   }
 }
 
 export async function getSharedItinerary(req, res) {
   try {
     const { shareId } = req.params;
+    if (!shareId) return res.status(400).json({ message: 'shareId is required' });
     const doc = await Itinerary.findOne({ shareId }).lean();
-    if (!doc) return res.status(404).json({ message: 'Not found' });
+    if (!doc) return res.status(404).json({ message: 'Itinerary not found' });
     return res.json({
       shareId: doc.shareId,
       title: doc.title,
@@ -381,6 +458,6 @@ export async function getSharedItinerary(req, res) {
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: err.message || 'load failed' });
+    return res.status(500).json({ message: err.message || 'Load failed' });
   }
 }

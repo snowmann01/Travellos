@@ -26,7 +26,7 @@ const budgetItemSchema = new mongoose.Schema(
   {
     label: { type: String, required: true },
     amount: { type: Number, required: true },
-    currency: { type: String, default: 'USD' },
+    currency: { type: String, default: 'USD', enum: ['USD', 'INR', 'EUR'] },
   },
   { _id: false }
 );

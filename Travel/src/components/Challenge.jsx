@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Confetti from 'react-confetti';
 import { Camera, Sparkles, MessageCircle, Video, Book, Globe, Image, X } from 'lucide-react';
+import { server } from '../Config/api';
 
 
 const Challenge = () => {
@@ -28,16 +29,47 @@ const Challenge = () => {
     }
   };
 
-  const handleClaimReward = (event) => {
+  const handleClaimReward = async (event) => {
     event.preventDefault();
 
     if (experience && image && location.latitude && location.longitude) {
-      setCompletedChallenges((prev) => [...prev, currentReward.id]);
-      setShowRewards(false);
-      setShowConfetti(true);
+      try {
+        const formData = new FormData();
+        formData.append('photo', image);
+        formData.append('description', experience);
+        formData.append('challengeId', String(currentReward.id));
+        formData.append('lat', String(location.latitude));
+        formData.append('lng', String(location.longitude));
+        const token = localStorage.getItem('token');
 
-      // Hide confetti after a short duration
-      setTimeout(() => setShowConfetti(false), 5000);
+        const response = await fetch(`${server}/challenges/complete`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData,
+        });
+
+        if (!response.ok) {
+          let message = `Request failed (${response.status})`;
+          try {
+            const errorData = await response.json();
+            message = errorData?.message || errorData?.error || message;
+          } catch {
+            // Keep fallback message when response is not JSON.
+          }
+          throw new Error(message);
+        }
+
+        setCompletedChallenges((prev) => [...prev, currentReward.id]);
+        setShowRewards(false);
+        setShowConfetti(true);
+
+        // Hide confetti after a short duration
+        setTimeout(() => setShowConfetti(false), 5000);
+      } catch (error) {
+        console.error('Failed to submit challenge completion:', error);
+        alert(`Failed to upload your challenge: ${error.message}`);
+      }
     } else {
       alert("Please fill in all the required details to complete the challenge.");
     }

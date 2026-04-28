@@ -10,8 +10,6 @@ import {
   FaCamera,
   FaTrophy,
   FaShareAlt,
-  FaLeaf,
-  FaRecycle,
   FaSeedling,
   FaRoute,
   FaUserCircle,
@@ -148,22 +146,10 @@ const Dashboard = () => {
       icon: <FaSeedling className="h-5 w-5" />,
     },
     {
-      title: 'Green points & carbon',
-      description: 'Points, footprint, and eco insights.',
-      to: '/green-points-system',
-      icon: <FaRecycle className="h-5 w-5" />,
-    },
-    {
       title: 'Leaderboard',
       description: 'See top explorers.',
       to: '/leaderboard',
       icon: <FaTrophy className="h-5 w-5" />,
-    },
-    {
-      title: 'Offline mode',
-      description: 'Download guides for no-signal areas.',
-      to: '/offline-mode',
-      icon: <FaLeaf className="h-5 w-5" />,
     },
   ];
 

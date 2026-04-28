@@ -36,10 +36,7 @@ import Challenge from "./components/Challenge.jsx";
 import AchievementSection from "./components/Acheivemnt";
 import BlogSection from "./components/Blog";
 import Newsletter from "./components/Newsletter";
-import OfflineMode from "./components/Offlinemode.jsx";
-import GreenPointsSystem from "./components/GreenPointsSystem.jsx";
 import EcoFriendlyPage from "./components/Ecofriendly.jsx";
-import CarbonReductionMap from "./components/Carbonreductionmap.jsx";
 import CommunityLiving from "./components/CommunityLiving.jsx";
 import CulturalActivities from "./components/CulturalActivities.jsx";
 import HandicraftsWorkshops  from "./components/HandicraftsWorkshops.jsx";
@@ -109,15 +106,8 @@ const App = () => {
                
                   <HiddenAttractions />
                 } />
-                <Route path="/offline-mode" element={
-               
-                  <OfflineMode/>
-                } />
               <Route path="*" element={<NotFoundPage />} />
-              <Route path="/offline-mode" element ={<OfflineMode />} />
-              <Route path="/green-points-system" element={<GreenPointsSystem />} />
               <Route path="/eco-friendly" element={<EcoFriendlyPage />} />
-              <Route path ="/carbon-reduction-map" element={<CarbonReductionMap />} />
               <Route path ="/community-living" element={<CommunityLiving />} />
               <Route path ="/cultural-activities" element={<CulturalActivities />} />
               <Route path ="/handicrafts-workshops" element={<HandicraftsWorkshops />} />

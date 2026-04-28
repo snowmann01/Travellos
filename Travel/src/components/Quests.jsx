@@ -4,6 +4,7 @@ import Confetti from 'react-confetti';
 import { MapPin, Camera, Trophy } from 'lucide-react';
 import RewardsModal from './RewardsModal';
 import { toast } from 'react-hot-toast'; 
+import { server } from '../Config/api';
 
 const Quests = () => {
   const [quests, setQuests] = useState([
@@ -188,17 +189,53 @@ const Quests = () => {
     setShowRewardsModal(true); // Open the modal when claiming the reward
   };
 
-  const claimReward = () => {
+  const claimReward = async (currentLocation) => {
     if (!experience || !image) {
       toast.error('Please fill in all fields before claiming your reward!');
       return;
     }
-    setQuests(quests.map(quest =>
-      quest.id === selectedQuest.id ? { ...quest, completed: true } : quest
-    ));
-    setShowRewardsModal(false);
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
+    if (!currentLocation?.latitude || !currentLocation?.longitude) {
+      toast.error('Location is required to complete this quest.');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('photo', image);
+      formData.append('description', experience);
+      formData.append('challengeId', `quest-${selectedQuest.id}`);
+      formData.append('lat', String(currentLocation.latitude));
+      formData.append('lng', String(currentLocation.longitude));
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${server}/challenges/complete`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let message = `Request failed (${response.status})`;
+        try {
+          const errorData = await response.json();
+          message = errorData?.message || errorData?.error || message;
+        } catch {
+          // Keep fallback message when response is not JSON.
+        }
+        throw new Error(message);
+      }
+
+      setQuests(quests.map((quest) =>
+        quest.id === selectedQuest.id ? { ...quest, completed: true } : quest
+      ));
+      setShowRewardsModal(false);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    } catch (error) {
+      console.error('Failed to submit quest completion:', error);
+      toast.error(`Failed to upload quest photo: ${error.message}`);
+    }
   };
 
   return (
